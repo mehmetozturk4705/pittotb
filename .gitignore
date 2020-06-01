@@ -1,0 +1,13 @@
+venv
+.idea
+**/__pycache__
+.env
+.env.test
+.env.production
+wslenv
+tmp
+persistence
+celerybeat*
+logs
+.databaseenv
+data.db
