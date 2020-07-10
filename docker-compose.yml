@@ -10,7 +10,7 @@ services:
             - app-network
         volumes:
           - ./persistence/:/usr/src/app/persistence/
-          - bot-logs:/var/logs/pitto/
+          - bot-logs:/var/log/pitto/
 
 #Docker Networks
 networks:
