@@ -6,8 +6,7 @@ venv
 .env.production
 wslenv
 tmp
-persistence
-celerybeat*
 logs
 .databaseenv
-data.db
+**/data.db
+**/documentindex

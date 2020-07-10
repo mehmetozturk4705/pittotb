@@ -1,0 +1,21 @@
+version: '3.3'
+services:
+    bot:
+        build: .
+        image: botapp
+        command: python main.py
+        restart: unless-stopped
+        tty: true
+        networks:
+            - app-network
+        volumes:
+          - ./data.db:/usr/src/app/data.db
+          - bot-logs:/var/logs/pitto/
+
+#Docker Networks
+networks:
+    app-network:
+        driver: bridge
+
+volumes:
+    bot-logs:

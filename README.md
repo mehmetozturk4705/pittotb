@@ -10,6 +10,10 @@ Pitto aşağıdakileri yapabilmektedir.
 3. Küfür ve hakaret içeriğini raporlar ve gruptan siler.
 4. Yöneticilere özel başvuruları iletir.
 
-Pitto'yu çalıştırmak için kök dizine .env dosyasını ekleyin aşağıdaki kaydı ekleyin
+Pitto'yu çalıştırmak için kök dizine .env dosyasını ekleyin ve aşağıdaki kayıtları ekleyin
     
     TOKEN=<TOKEN>
+    BOTNAME=PittoPyBot #veya bot username
+    GROUPNAME=pyturk #veya grup username
+    LOGFILE=/var/log/pitto/pitto.log
+    

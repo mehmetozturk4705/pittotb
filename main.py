@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -11,11 +12,13 @@ from telegram.parsemode import ParseMode
 from telegram.ext.dispatcher import run_async
 from nltk import ngrams
 from persistence import Model
+from cache import Cache
 
 # Configuration
-BOTNAME = 'PittoPyBot'
+BOTNAME = os.getenv("BOTNAME")
 TOKEN = os.getenv("TOKEN")
-GROUP_NAME = "pyturk"
+GROUP_NAME = os.getenv("GROUPNAME")
+LOG_FILE = os.getenv("LOGFILE")
 PROFANITY_NGRAMS = 2
 
 # Set up logging
@@ -24,13 +27,17 @@ root.setLevel(logging.INFO)
 karaliste = []
 
 # Set up persistence
-model = Model("data.db")
+model = Model("persistence/data.db")
 model.initiate()
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
+logger.level = logging.INFO
+handler = RotatingFileHandler(LOG_FILE, maxBytes=100*1024, backupCount=10, encoding="utf8")
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
 
 group_rules = """
 **Pyturk** Python ve programlamaya dair tartışmalar yürütmek için oluşturulmuş profesyonel bir topluluktur. 
@@ -97,6 +104,7 @@ def message(update:Update, context:CallbackContext):
     if not check_group(context.bot, update):
         return
     bot = context.bot
+    raise ValueError
     if update.message.text:
         profanity, text_b = remove_profanity(update.message.text)
         if profanity:
@@ -114,10 +122,18 @@ def check_group(bot:Bot, update:Update):
         return False
     return True
 
-def check_admin(bot:Bot, update:Update):
+@Cache(cache_key=lambda u, c: str(u.message.chat_id), timeout=60*60)
+def fetch_admins(update:Update, context:CallbackContext):
+    bot = context.bot
     id_list = []
     for member in bot.get_chat_administrators(chat_id=update.message.chat.id):
         id_list.append(member.user.id)
+    return id_list
+
+
+def check_admin(update:Update, context:CallbackContext):
+    bot = context.bot
+    id_list = fetch_admins(update, context)
     if update.message.to_dict().get("from").get("id", None) not in id_list:
         logging.warning("Kullanıcı admin yetkisi kullanmaya çalışıyor. ")
         bot.send_message(text="Bu komut için yönetici olman gerekiyor.", chat_id=update.message.chat.id)
@@ -131,7 +147,7 @@ def send_message_behalf(update:Update, context:CallbackContext):
     bot.delete_message(chat_id=update.message.chat.id, message_id=update.message.message_id)
     if not check_group(context.bot, update):
         return
-    if not check_admin(bot, update):
+    if not check_admin(update, context):
         return
     bot.send_message(chat_id=update.message.chat.id, text=" ".join(args))
 
@@ -148,6 +164,8 @@ def register_pyturk(update:Update, context:CallbackContext):
 def register_yardim(update:Update, context:CallbackContext):
     bot = context.bot
     bot.delete_message(chat_id=update.message.chat.id, message_id=update.message.message_id)
+    if not check_group(context.bot, update):
+        return
     bot.send_message(text="Yardım isteğini yöneticime ilettim, sana en kısa zamanda dönüş yapacağını söyledi.🤗", chat_id=update.message.chat.id)
     active_user = update.message.to_dict().get("from").get("id", None)
     first_name = update.message.to_dict().get("from").get("first_name", None)
@@ -155,8 +173,9 @@ def register_yardim(update:Update, context:CallbackContext):
     send_message_to_administrators(update, context, f"[{first_name} {last_name}](tg://user?id={active_user}) kullanıcısı sana yardım isteği gönderdi. \n\n\n {' '.join(context.args)}")
 
 
-def error_callback(update, context):
-    logger.error('Update "%s" caused error "%s"', update, context.error)
+def error_callback(update, context:CallbackContext):
+    logger.error('Update "%s" caused error(%s): "%s"', update, type(context.error), str(context.error))
+    logger.exception(context.error)
 
 def load_karaliste():
     global karaliste
@@ -195,7 +214,7 @@ def send_rules(update:Update, context:CallbackContext):
     bot.delete_message(chat_id=update.message.chat.id, message_id=update.message.message_id)
     if not check_group(context.bot, update):
         return
-    if not check_admin(bot, update):
+    if not check_admin(update, context):
         return
     message = bot.send_message(chat_id=update.message.chat.id, text=group_rules, parse_mode=ParseMode.MARKDOWN)
     bot.pin_chat_message(chat_id=update.message.chat.id, message_id=message.message_id)
@@ -208,10 +227,10 @@ if __name__ == '__main__':
     dp.add_handler(CommandHandler("pyturk", register_pyturk))
     dp.add_handler(CommandHandler("yardim", register_yardim))
     dp.add_handler(CommandHandler("kurallar", send_rules))
-    #dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_member))
+    dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_member))
     dp.add_handler(MessageHandler(Filters.text, message))
-    #dp.add_error_handler(error_callback)
+    dp.add_error_handler(error_callback)
     load_karaliste()
-    logging.info("Başladı")
+    logger.info("Başladı")
     update_queue = updater.start_polling(timeout=30, clean=False)
     updater.idle()
