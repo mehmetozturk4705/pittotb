@@ -9,7 +9,7 @@ services:
         networks:
             - app-network
         volumes:
-          - ./data.db:/usr/src/app/data.db
+          - ./persistence/:/usr/src/app/persistence/
           - bot-logs:/var/logs/pitto/
 
 #Docker Networks
