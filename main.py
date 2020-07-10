@@ -104,7 +104,6 @@ def message(update:Update, context:CallbackContext):
     if not check_group(context.bot, update):
         return
     bot = context.bot
-    raise ValueError
     if update.message.text:
         profanity, text_b = remove_profanity(update.message.text)
         if profanity:
