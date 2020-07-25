@@ -2,6 +2,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import re
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -13,6 +14,9 @@ from telegram.ext.dispatcher import run_async
 from nltk import ngrams
 from persistence import Model
 from cache import Cache
+from resource_se import ResourceSearchEngine
+from utils import Utils
+
 
 # Configuration
 BOTNAME = os.getenv("BOTNAME")
@@ -30,6 +34,9 @@ karaliste = []
 model = Model("persistence/data.db")
 model.initiate()
 
+#Setup whoosh
+
+
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -38,6 +45,8 @@ logger.level = logging.INFO
 handler = RotatingFileHandler(LOG_FILE, maxBytes=100*1024, backupCount=10, encoding="utf8")
 handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
+
+resource_search_engine = ResourceSearchEngine("persistence/documentindex")
 
 group_rules = """
 **Pyturk** Python ve programlamaya dair tartışmalar yürütmek için oluşturulmuş profesyonel bir topluluktur. 
@@ -75,6 +84,49 @@ def send_message_to_administrators(update:Update, context:CallbackContext, text:
                     bot.send_message(text=text, chat_id=chat_id, parse_mode=ParseMode.MARKDOWN)
                 except Exception as e:
                     logging.error(e)
+@run_async
+def check_resource(update:Update, context:CallbackContext):
+    if update.message.text:
+        if len(re.findall("#kaynak", update.message.text, ))>0:
+            reply_to_message = update.message.reply_to_message
+            urls = [update.message.text[x.offset:x.offset+x.length] for x in update.message.entities if x.type=="url"]
+            if reply_to_message:
+                urls += [reply_to_message.text[x.offset:x.offset+x.length] for x in reply_to_message.entities if x.type=="url"]
+            if len(urls)>0:
+                url_metas = []
+                for url in urls:
+                    try:
+                        url_metas.append(Utils.extract_meta_of_webpage(url))
+                    except Exception:
+                        pass
+                resource_search_engine.add_documents([{"message": update.message.text + "\n" + (reply_to_message.text if reply_to_message else ""), "meta_content": "\n\n".join(url_metas), "message_id": update.message.message_id if not reply_to_message else reply_to_message.message_id, "chat_id": update.message.chat.id if not reply_to_message else reply_to_message.chat.id}])
+                logging.info(f"Belge eklendi chat_id: {update.message.chat.id} message_id:{update.message.message_id}")
+
+@run_async
+def search_resource(update:Update, context:CallbackContext):
+    bot = context.bot
+    search_statement = " ".join(context.args)
+    bot.delete_message(chat_id=update.message.chat.id, message_id=update.message.message_id)
+    chat_id = model.get_chat(update.message.from_user.id)
+    name = update.message.to_dict().get('from').get('first_name', None)
+    if not chat_id:
+        bot.send_message(chat_id=update.message.chat.id, parse_mode=ParseMode.MARKDOWN,
+                         text=f"{('Sevgili ' + name + '. ') if name else ''} Arama sonuçlarını seninle paylaşabilmem için @{BOTNAME} linkinden benimle iletişim kurmalısın. ☺")
+        return
+    if len(search_statement)<2:
+        bot.send_message(chat_id=chat_id,
+                         text="Arama ifadesi çok kısa görünüyor 😬 /ara komutundan sonra arayacağın ifadeyi girmelisin.")
+        return
+    search_statement=search_statement.replace("kaynak", "")
+    results = resource_search_engine.search_content(search_statement)
+    if len(results)==0:
+        bot.send_message(chat_id=chat_id,
+                         text="Malesef hiç bir sonuç bulamadım. 🤔")
+    else:
+        bot.send_message(chat_id=chat_id,
+                         text=f"Süperr! {len(results)} sonuç buldum. 😎")
+    for result in results[:10]:
+        bot.forward_message(chat_id=chat_id, message_id=result["message_id"], from_chat_id=result["chat_id"])
 
 def remove_profanity(param:str):
     result = False
@@ -98,6 +150,8 @@ def remove_profanity(param:str):
     return result, param
 
 
+
+
 def message(update:Update, context:CallbackContext):
     """
     """
@@ -114,6 +168,10 @@ def message(update:Update, context:CallbackContext):
             send_message_to_administrators(update, context,
                                            f"[{first_name} {last_name}](tg://user?id={active_user}) kullanıcısı yasaklı mesaj için uyarıldı. \n\n\n {update.message.text}")
             bot.send_message(chat_id=update.message.chat.id, text=f"Yasaklı kelime kullanımı tespit ettim. Grup kurallarında belirtildiği üzere küfür ve hakaret içerikli mesaj gönderemezsin! 😡😡\n\n{text_b}", parse_mode="html")
+        else:
+            check_resource(update, context)
+            
+        
 
 def check_group(bot:Bot, update:Update):
     if update.message.chat.username != GROUP_NAME:
@@ -223,6 +281,7 @@ if __name__ == '__main__':
     dp:Dispatcher = updater.dispatcher
     dp.add_handler(CommandHandler("start", start, pass_args=True))
     dp.add_handler(CommandHandler("mesaj", send_message_behalf, pass_args=True))
+    dp.add_handler(CommandHandler("ara", search_resource, pass_args=True))
     dp.add_handler(CommandHandler("pyturk", register_pyturk))
     dp.add_handler(CommandHandler("yardim", register_yardim))
     dp.add_handler(CommandHandler("kurallar", send_rules))
