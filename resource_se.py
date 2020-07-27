@@ -39,7 +39,7 @@ class ResourceSearchEngine(object):
             query = qparser.MultifieldParser(["message", "meta_content"] if cur_lang=="en" else ["message_tr", "meta_content_tr"], self.__schema, termclass=CustomFuzzyTerm).parse(search_statement)
             results = searcher.search(query)
             for r in results:
-                result_list.append({"message_id": r["message_id"], "chat_id": r["chat_id"]})
+                result_list.append({"_docnum": r.docnum, "message_id": r["message_id"], "chat_id": r["chat_id"], "message": r["message"], "meta_content": r["meta_content"]})
 
         return result_list
 
@@ -54,3 +54,7 @@ class ResourceSearchEngine(object):
 
     def fetch_all_documents(self):
         return self.__index.searcher().documents()
+
+    def delete_document(self, docnum: int):
+        with writing.AsyncWriter(self.__index) as writer:
+            writer.delete_document(docnum)
