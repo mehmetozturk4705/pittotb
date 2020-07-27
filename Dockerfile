@@ -10,14 +10,15 @@ ENV PYTHONUNBUFFERED 1
 ENV DOCKERIZED 1
 
 # install dependencies
+
 RUN apk update &&\
-    apk add libgcc py3-pip gcc python3 python3-dev openssl-dev musl-dev libffi libffi-dev &&\
+    apk add libgcc py3-pip gcc python3 python3-dev openssl-dev musl-dev libxml2 libxml2-dev libxslt libxslt-dev libffi libffi-dev make &&\
     pip install cython
 
 RUN pip install --upgrade pip
 COPY ./requirements.txt /usr/src/app/requirements.txt
 RUN pip install -r requirements.txt
-
+    
 EXPOSE 8000
 
 # copy project
