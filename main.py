@@ -257,11 +257,13 @@ def start(update:Update, context:CallbackContext):
         bot.send_message(text="Malesef grup içerisinde bu komutu kullanamazsın. 😕", chat_id=update.message.chat.id)
     else:
         try:
-            if update.message.to_dict().get("from").get("username", None):
+            if update.message.to_dict().get("from").get("id", None):
                 if model.get_chat_by_chat_id(update.message.chat.id):
                     raise Exception
                 model.add_chat(update.message.chat.id, update.message.to_dict().get("from").get("id", None))
-            bot.send_message(text="Tanıştığımıza memnun oldum.🥰 Gerektiğinde buradan seninle iletişim kuracağım. ", chat_id=update.message.chat.id)
+                bot.send_message(text="Tanıştığımıza memnun oldum.🥰 Gerektiğinde buradan seninle iletişim kuracağım. ", chat_id=update.message.chat.id)
+            else:
+                bot.send_message(text="Bir hata oluştu.",  chat_id=update.message.chat.id)
         except:
             bot.send_message(text="Seni önceden tanıyor olabilir miyim? 🤨", chat_id=update.message.chat.id)
 
