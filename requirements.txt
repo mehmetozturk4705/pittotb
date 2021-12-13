@@ -15,7 +15,7 @@ Jinja2==2.11.2
 joblib==0.16.0
 langdetect==1.0.8
 linkpreview==0.1.11
-lxml==4.5.2
+lxml==4.6.5
 MarkupSafe==1.1.1
 nltk==3.5
 packaging==20.4
